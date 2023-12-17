@@ -1,0 +1,33 @@
+version: '3'
+services:
+  db:
+    image: postgres:16.1-alpine3.19
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: Asia/Taipei
+      PGTZ: Asia/Taipei
+    ports:
+      - 5435:5432
+    volumes: 
+      - db:/var/lib/postgresql/data
+    networks:
+      - go-docker-net
+  app:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    volumes:
+      - ./:/app
+    ports:
+      - 8080:8080
+    depends_on:
+      - db
+    networks:
+        - go-docker-net
+
+networks:
+  go-docker-net:
+
+volumes:
+  db:
