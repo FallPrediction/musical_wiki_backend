@@ -2,44 +2,28 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
-	"gorm.io/datatypes"
-	"gorm.io/gorm"
 	"musical_wiki/global"
+	"musical_wiki/request"
+	"musical_wiki/service"
 	"net/http"
-	"time"
 )
 
-type Actor struct {
-	Id             uint32         `json:"id"`
-	Name           string         `json:"name" validate:"required"`
-	TranslatedName string         `json:"translated_name"`
-	NickName       string         `json:"nick_name"`
-	Nationality    string         `json:"nationality"`
-	Born           string         `json:"born"`
-	ImageId        *uint32        `json:"image_id"`
-	Content        string         `json:"content"`
-	Socials        datatypes.JSON `json:"socials" validate:"json,omitempty"`
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	DeletedAt      gorm.DeletedAt
+type ActorHandler struct {
+	service service.ActorService
 }
 
-type ActorHandler struct{}
-
 func (handler *ActorHandler) Index(c *gin.Context) {
-	var actors []Actor
-	err := global.Db.Find(&actors).Error
+	actors, err := handler.service.Index()
 	if err != nil {
 		global.Logger.Error("db error", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "actor not found"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "db error"})
 	}
 	c.JSON(http.StatusOK, gin.H{"actors": actors})
 }
 
 func (handler *ActorHandler) Show(c *gin.Context) {
 	id := c.Param("id")
-	var actor Actor
-	err := global.Db.Where("id = ?", id).First(&actor).Error
+	actor, err := handler.service.Show(id)
 	if err != nil {
 		global.Logger.Error("db error", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "actor not found"})
@@ -49,13 +33,13 @@ func (handler *ActorHandler) Show(c *gin.Context) {
 }
 
 func (handler *ActorHandler) Store(c *gin.Context) {
-	var actor Actor
-	err := c.ShouldBind(&actor)
+	var request request.Actor
+	err := c.ShouldBind(&request)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	err = global.Db.Create(&actor).Error
+	actor, err := handler.service.Store(&request)
 	if err != nil {
 		global.Logger.Error("db error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "db error"})
@@ -66,19 +50,13 @@ func (handler *ActorHandler) Store(c *gin.Context) {
 
 func (handler *ActorHandler) Update(c *gin.Context) {
 	id := c.Param("id")
-	var actor Actor
-	err := global.Db.Where("id = ?", id).First(&actor).Error
-	if err != nil {
-		global.Logger.Error("db error", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "actor not found"})
-		return
-	}
-	err = c.ShouldBind(&actor)
+	var request request.Actor
+	err := c.ShouldBind(&request)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	err = global.Db.Save(&actor).Error
+	actor, err := handler.service.Update(id, &request)
 	if err != nil {
 		global.Logger.Error("db error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "db error"})
@@ -87,20 +65,13 @@ func (handler *ActorHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"actor": actor})
 }
 
-func (hanler ActorHandler) Destroy(c *gin.Context) {
+func (handler *ActorHandler) Destroy(c *gin.Context) {
 	id := c.Param("id")
-	var actor Actor
-	err := global.Db.Where("id = ?", id).First(&actor).Error
-	if err != nil {
-		global.Logger.Error("db error", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "actor not found"})
-		return
-	}
-	err = global.Db.Delete(&actor).Error
+	err := handler.service.Destroy(id)
 	if err != nil {
 		global.Logger.Error("db error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "db error"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"actor": actor})
+	c.JSON(http.StatusOK, gin.H{"message": "sccuess"})
 }
