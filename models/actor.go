@@ -1,9 +1,10 @@
 package models
 
 import (
+	"time"
+
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	"time"
 )
 
 type Actor struct {
@@ -13,7 +14,7 @@ type Actor struct {
 	NickName       string
 	Nationality    string
 	Born           string
-	ImageId        *uint32
+	ImageId        *uint32 `gorm:"default:null"`
 	Content        string
 	Socials        datatypes.JSON
 	CreatedAt      time.Time
