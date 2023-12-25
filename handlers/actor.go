@@ -1,11 +1,16 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
+	"errors"
 	"musical_wiki/global"
+	"musical_wiki/models"
 	"musical_wiki/request"
 	"musical_wiki/service"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
+	"gorm.io/gorm"
 )
 
 type ActorHandler struct {
@@ -14,64 +19,76 @@ type ActorHandler struct {
 
 func (handler *ActorHandler) Index(c *gin.Context) {
 	actors, err := handler.service.Index()
-	if err != nil {
-		global.Logger.Error("db error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "db error"})
-	}
-	c.JSON(http.StatusOK, gin.H{"actors": actors})
+	handleErrorAndReturn(err, c, func() {
+		sendResponse(c, http.StatusOK, "成功", map[string][]models.Actor{"actors": actors})
+	})
 }
 
 func (handler *ActorHandler) Show(c *gin.Context) {
 	id := c.Param("id")
 	actor, err := handler.service.Show(id)
-	if err != nil {
-		global.Logger.Error("db error", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "actor not found"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"actor": actor})
+	handleErrorAndReturn(err, c, func() {
+		sendResponse(c, http.StatusOK, "成功", map[string]models.Actor{"actor": actor})
+	})
 }
 
 func (handler *ActorHandler) Store(c *gin.Context) {
 	var request request.Actor
 	err := c.ShouldBind(&request)
 	if err != nil {
-		c.JSON(http.StatusUnprocessableEntity, err.Error())
+		handleError(err, c)
 		return
 	}
 	actor, err := handler.service.Store(&request)
-	if err != nil {
-		global.Logger.Error("db error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "db error"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"actor": actor})
+	handleErrorAndReturn(err, c, func() {
+		sendResponse(c, http.StatusCreated, "成功", map[string]models.Actor{"actor": actor})
+	})
 }
 
 func (handler *ActorHandler) Update(c *gin.Context) {
 	id := c.Param("id")
 	var request request.Actor
-	err := c.ShouldBind(&request)
-	if err != nil {
-		c.JSON(http.StatusUnprocessableEntity, err.Error())
+	if err := c.ShouldBind(&request); err != nil {
+		handleError(err, c)
 		return
 	}
-	actor, err := handler.service.Update(id, &request)
-	if err != nil {
-		global.Logger.Error("db error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "db error"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"actor": actor})
+	err := handler.service.Update(id, &request)
+	handleErrorAndReturn(err, c, func() {
+		sendResponse(c, http.StatusOK, "成功", nil)
+	})
 }
 
 func (handler *ActorHandler) Destroy(c *gin.Context) {
 	id := c.Param("id")
 	err := handler.service.Destroy(id)
+	handleErrorAndReturn(err, c, func() {
+		sendResponse(c, http.StatusOK, "成功", nil)
+	})
+}
+
+func handleErrorAndReturn(err error, c *gin.Context, onSuccess func()) {
 	if err != nil {
-		global.Logger.Error("db error", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "db error"})
+		handleError(err, c)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "sccuess"})
+	onSuccess()
+}
+
+func handleError(err error, c *gin.Context) {
+	switch {
+	case errors.As(err, &(validator.ValidationErrors{})):
+		sendResponse(c, http.StatusUnprocessableEntity, err.(validator.ValidationErrors).Translate(global.Translator), nil)
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		sendResponse(c, http.StatusNotFound, "伺服器找不到請求的資源", nil)
+	default:
+		global.Logger.Error("db error", err)
+		sendResponse(c, http.StatusUnprocessableEntity, "系統錯誤", nil)
+	}
+}
+
+func sendResponse(c *gin.Context, statusCode int, message interface{}, data interface{}) {
+	c.JSON(statusCode, gin.H{
+		"message": message,
+		"data":    data,
+	})
 }

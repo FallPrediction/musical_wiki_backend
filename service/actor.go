@@ -32,7 +32,7 @@ func (service *ActorService) Store(request *request.Actor) (models.Actor, error)
 	return actor, service.repo.Store(&actor)
 }
 
-func (service *ActorService) Update(id string, request *request.Actor) (models.Actor, error) {
+func (service *ActorService) Update(id string, request *request.Actor) error {
 	actor := models.Actor{
 		Name:           request.Name,
 		TranslatedName: request.TranslatedName,
@@ -43,7 +43,7 @@ func (service *ActorService) Update(id string, request *request.Actor) (models.A
 		Content:        request.Content,
 		Socials:        request.Socials,
 	}
-	return actor, service.repo.Update(id, &actor)
+	return service.repo.Update(id, &actor)
 }
 
 func (service *ActorService) Destroy(id string) error {
