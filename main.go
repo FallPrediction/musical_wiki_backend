@@ -8,6 +8,7 @@ import (
 func main() {
 	initialize.InitLogger()
 	initialize.InitDatabase()
+	initialize.InitTranslator()
 
 	r := router.InitRouter()
 
