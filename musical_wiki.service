@@ -1,0 +1,12 @@
+[Unit]
+Description=Musical wiki service
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/var/app
+ExecStart=/var/app/musical_wiki
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
