@@ -20,5 +20,8 @@ func InitRouter() *gin.Engine {
 			actors.DELETE("/:id", actorHandler.Destroy)
 		}
 	}
+	router.GET("health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "ok"})
+	})
 	return router
 }
