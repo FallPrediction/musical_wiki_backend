@@ -36,6 +36,16 @@ services:
       - ./redis/users.acl:/etc/redis/users.acl
     networks:
         - go-docker-net
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - app
+    ports:
+      - 80:80
+    volumes:
+      - ./nginx/conf.d/:/etc/nginx/conf.d
+    networks:
+        - go-docker-net
 
 networks:
   go-docker-net:
