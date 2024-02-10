@@ -1,16 +1,12 @@
 package handlers
 
 import (
-	"errors"
-	"musical_wiki/global"
 	"musical_wiki/models"
 	"musical_wiki/request"
 	"musical_wiki/service"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-playground/validator/v10"
-	"gorm.io/gorm"
 )
 
 type ActorHandler struct {
@@ -63,32 +59,5 @@ func (handler *ActorHandler) Destroy(c *gin.Context) {
 	err := handler.service.Destroy(id)
 	handleErrorAndReturn(err, c, func() {
 		sendResponse(c, http.StatusOK, "成功", nil)
-	})
-}
-
-func handleErrorAndReturn(err error, c *gin.Context, onSuccess func()) {
-	if err != nil {
-		handleError(err, c)
-		return
-	}
-	onSuccess()
-}
-
-func handleError(err error, c *gin.Context) {
-	switch {
-	case errors.As(err, &(validator.ValidationErrors{})):
-		sendResponse(c, http.StatusUnprocessableEntity, err.(validator.ValidationErrors).Translate(global.Translator), nil)
-	case errors.Is(err, gorm.ErrRecordNotFound):
-		sendResponse(c, http.StatusNotFound, "伺服器找不到請求的資源", nil)
-	default:
-		global.Logger.Error("db error", err)
-		sendResponse(c, http.StatusUnprocessableEntity, "系統錯誤", nil)
-	}
-}
-
-func sendResponse(c *gin.Context, statusCode int, message interface{}, data interface{}) {
-	c.JSON(statusCode, gin.H{
-		"message": message,
-		"data":    data,
 	})
 }
