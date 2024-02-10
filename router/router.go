@@ -1,8 +1,9 @@
 package router
 
 import (
-	"github.com/gin-gonic/gin"
 	"musical_wiki/handlers"
+
+	"github.com/gin-gonic/gin"
 )
 
 func InitRouter() *gin.Engine {
@@ -18,6 +19,13 @@ func InitRouter() *gin.Engine {
 			actors.POST("/", actorHandler.Store)
 			actors.PUT("/:id", actorHandler.Update)
 			actors.DELETE("/:id", actorHandler.Destroy)
+		}
+		credits := apis.Group("credit")
+		creditHandler := handlers.CreditHandler{}
+		{
+			credits.POST("/", creditHandler.Store)
+			credits.PUT("/:id", creditHandler.Update)
+			credits.DELETE("/:id", creditHandler.Destroy)
 		}
 	}
 	router.GET("health", func(c *gin.Context) {
