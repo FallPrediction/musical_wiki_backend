@@ -2,12 +2,14 @@ package router
 
 import (
 	"musical_wiki/handlers"
+	"musical_wiki/middleware"
 
 	"github.com/gin-gonic/gin"
 )
 
 func InitRouter() *gin.Engine {
 	router := gin.Default()
+	router.Use(middleware.Cors())
 
 	apis := router.Group("api")
 	{
