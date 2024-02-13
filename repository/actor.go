@@ -7,10 +7,12 @@ import (
 
 type ActorRepository struct{}
 
-func (repository *ActorRepository) Index() ([]models.Actor, error) {
+func (repository *ActorRepository) Index(currentPage int, perPage int) ([]models.Actor, int64, error) {
 	var actors []models.Actor
-	err := global.Db.Find(&actors).Error
-	return actors, err
+	var count int64
+	global.Db.Model(&models.Actor{}).Count(&count)
+	err := global.Db.Order("id").Limit(perPage).Offset((currentPage - 1) * perPage).Find(&actors).Error
+	return actors, count, err
 }
 
 func (repository *ActorRepository) Show(id string) (models.Actor, error) {

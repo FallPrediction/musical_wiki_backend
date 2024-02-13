@@ -4,6 +4,11 @@ import (
 	"gorm.io/datatypes"
 )
 
+type IndexActor struct {
+	CurrentPage *int `form:"current_page" binding:"omitempty,numeric"`
+	PerPage     *int `form:"per_page" binding:"omitempty,numeric,min=1,max=50"`
+}
+
 type Actor struct {
 	Name           string         `json:"name" binding:"required"`
 	TranslatedName string         `json:"translated_name"`

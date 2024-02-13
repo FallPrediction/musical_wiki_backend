@@ -14,9 +14,25 @@ type ActorHandler struct {
 }
 
 func (handler *ActorHandler) Index(c *gin.Context) {
-	actors, err := handler.service.Index()
+	var request request.IndexActor
+	err := c.ShouldBind(&request)
+	if err != nil {
+		handleError(err, c)
+		return
+	}
+	if request.CurrentPage == nil {
+		page := 1
+		request.CurrentPage = &page
+	}
+	if request.PerPage == nil {
+		perPage := 12
+		request.PerPage = &perPage
+	}
+
+	actors, count, err := handler.service.Index(*request.CurrentPage, *request.PerPage)
+
 	handleErrorAndReturn(err, c, func() {
-		sendResponse(c, http.StatusOK, "成功", map[string][]models.Actor{"actors": actors})
+		sendResponseWithPagination(c, http.StatusOK, "成功", map[string][]models.Actor{"actors": actors}, *request.CurrentPage, *request.PerPage, int(count))
 	})
 }
 

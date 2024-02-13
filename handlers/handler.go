@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"math"
 	"musical_wiki/global"
 	"net/http"
 
@@ -34,5 +35,19 @@ func sendResponse(c *gin.Context, statusCode int, message interface{}, data inte
 	c.JSON(statusCode, gin.H{
 		"message": message,
 		"data":    data,
+	})
+}
+
+func sendResponseWithPagination(c *gin.Context, statusCode int, message interface{}, data interface{}, currentPage int, perPage int, total int) {
+	lastPage := int(math.Ceil(float64(total) / float64(perPage)))
+	c.JSON(statusCode, gin.H{
+		"message": message,
+		"data":    data,
+		"pagination": gin.H{
+			"currentPage": currentPage,
+			"lastPage":    lastPage,
+			"total":       total,
+			"perPage":     perPage,
+		},
 	})
 }

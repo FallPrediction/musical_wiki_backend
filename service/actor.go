@@ -15,8 +15,8 @@ type ActorService struct {
 	repo repository.ActorRepository
 }
 
-func (service *ActorService) Index() ([]models.Actor, error) {
-	return service.repo.Index()
+func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor, int64, error) {
+	return service.repo.Index(currentPage, perPage)
 }
 
 func (service *ActorService) Show(id string) (models.Actor, error) {
