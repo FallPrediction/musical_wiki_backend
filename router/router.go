@@ -16,16 +16,16 @@ func InitRouter() *gin.Engine {
 		actors := apis.Group("actor")
 		actorHandler := handlers.ActorHandler{}
 		{
-			actors.GET("/", actorHandler.Index)
+			actors.GET("", actorHandler.Index)
 			actors.GET("/:id", actorHandler.Show)
-			actors.POST("/", actorHandler.Store)
+			actors.POST("", actorHandler.Store)
 			actors.PUT("/:id", actorHandler.Update)
 			actors.DELETE("/:id", actorHandler.Destroy)
 		}
 		credits := apis.Group("credit")
 		creditHandler := handlers.CreditHandler{}
 		{
-			credits.POST("/", creditHandler.Store)
+			credits.POST("", creditHandler.Store)
 			credits.PUT("/:id", creditHandler.Update)
 			credits.DELETE("/:id", creditHandler.Destroy)
 		}
