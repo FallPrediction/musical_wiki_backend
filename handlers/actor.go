@@ -3,6 +3,7 @@ package handlers
 import (
 	"musical_wiki/models"
 	"musical_wiki/request"
+	"musical_wiki/resource"
 	"musical_wiki/service"
 	"net/http"
 
@@ -32,7 +33,8 @@ func (handler *ActorHandler) Index(c *gin.Context) {
 	actors, count, err := handler.service.Index(*request.CurrentPage, *request.PerPage)
 
 	handleErrorAndReturn(err, c, func() {
-		sendResponseWithPagination(c, http.StatusOK, "成功", map[string][]models.Actor{"actors": actors}, *request.CurrentPage, *request.PerPage, int(count))
+		resource := resource.ActorSliceResource{ModelSlice: actors}
+		sendResponseWithPagination(c, http.StatusOK, "成功", resource.ToSliceResource(), *request.CurrentPage, *request.PerPage, int(count))
 	})
 }
 
@@ -40,7 +42,8 @@ func (handler *ActorHandler) Show(c *gin.Context) {
 	id := c.Param("id")
 	actor, err := handler.service.Show(id)
 	handleErrorAndReturn(err, c, func() {
-		sendResponse(c, http.StatusOK, "成功", map[string]models.Actor{"actor": actor})
+		resource := resource.ActorResource{Model: actor}
+		sendResponse(c, http.StatusOK, "成功", resource.ToMap())
 	})
 }
 
