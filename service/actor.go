@@ -17,8 +17,9 @@ type ActorService struct {
 }
 
 func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor, int64, error) {
-	ctx := context.Background()
 	key := fmt.Sprintf("actorsList:size=%v:currPage=%v", perPage, currentPage)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
 	cache, err := global.Redis.HGetAll(ctx, key).Result()
 	if err == nil {
 		var cacheActors []models.Actor
@@ -30,6 +31,7 @@ func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor
 			return cacheActors, count, nil
 		}
 	}
+	cancel()
 
 	actors, count, actorsErr := service.repo.Index(currentPage, perPage)
 	if actorsErr == nil {
@@ -37,6 +39,8 @@ func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor
 		if err != nil {
 			global.Logger.Warn("json marshal error", err)
 		} else {
+			ctx, cancel = context.WithTimeout(context.Background(), 500*time.Millisecond)
+			defer cancel()
 			global.Redis.HSet(ctx, key, "actors", bytes, "count", count)
 			global.Redis.Expire(ctx, key, 24*time.Hour)
 		}
@@ -45,8 +49,9 @@ func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor
 }
 
 func (service *ActorService) Show(id string) (models.Actor, error) {
-	ctx := context.Background()
 	key := fmt.Sprintf("actor:%v", id)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
 	bytes, err := global.Redis.Get(ctx, key).Bytes()
 	if err == nil {
 		var cacheActor models.Actor
@@ -57,6 +62,7 @@ func (service *ActorService) Show(id string) (models.Actor, error) {
 			return cacheActor, nil
 		}
 	}
+	cancel()
 
 	actor, actorErr := service.repo.Show(id)
 	if actorErr == nil {
@@ -64,6 +70,8 @@ func (service *ActorService) Show(id string) (models.Actor, error) {
 		if err != nil {
 			global.Logger.Warn("json marshal error", err)
 		} else {
+			ctx, cancel = context.WithTimeout(context.Background(), 500*time.Millisecond)
+			defer cancel()
 			global.Redis.Set(ctx, key, bytes, 24*time.Hour)
 		}
 	}
@@ -108,15 +116,23 @@ func (service *ActorService) Destroy(id string) error {
 }
 
 func (service *ActorService) delActorCache(id string) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 	key := fmt.Sprintf("actor:%v", id)
 	global.Redis.Del(ctx, key)
+	if ctx.Err() == context.DeadlineExceeded {
+		global.Logger.Warn("delActorCache timeout", key)
+	}
 }
 
 func (service *ActorService) delActorsListCache() {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 	iter := global.Redis.Scan(ctx, 0, "actorsList:size=*:currPage=*", 0).Iterator()
 	for iter.Next(ctx) {
 		global.Redis.Del(ctx, iter.Val())
+	}
+	if ctx.Err() == context.DeadlineExceeded {
+		global.Logger.Warn("delActorsListCache timeout")
 	}
 }
