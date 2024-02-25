@@ -16,6 +16,7 @@ type Actor struct {
 	Born           string
 	ImageId        *uint32 `gorm:"default:null"`
 	Content        string
+	Credits        []Credit
 	Socials        datatypes.JSON
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
