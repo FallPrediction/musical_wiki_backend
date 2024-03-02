@@ -59,6 +59,7 @@ func (service *ActorService) Show(id string) (models.Actor, error) {
 		if err != nil {
 			global.Logger.Warn("json unmarshal error", err)
 		} else {
+			service.loadCredits(&cacheActor)
 			return cacheActor, nil
 		}
 	}
@@ -75,6 +76,7 @@ func (service *ActorService) Show(id string) (models.Actor, error) {
 			global.Redis.Set(ctx, key, bytes, 24*time.Hour)
 		}
 	}
+	service.loadCredits(&actor)
 	return actor, actorErr
 }
 
@@ -134,5 +136,13 @@ func (service *ActorService) delActorsListCache() {
 	}
 	if ctx.Err() == context.DeadlineExceeded {
 		global.Logger.Warn("delActorsListCache timeout")
+	}
+}
+
+func (service *ActorService) loadCredits(actor *models.Actor) {
+	creditService := CreditService{}
+	credits, creditsErr := creditService.IndexByActorId(strconv.Itoa(int(actor.Id)))
+	if creditsErr == nil {
+		actor.Credits = credits
 	}
 }
