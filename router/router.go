@@ -29,6 +29,13 @@ func InitRouter() *gin.Engine {
 			credits.PUT("/:id", creditHandler.Update)
 			credits.DELETE("/:id", creditHandler.Destroy)
 		}
+		images := apis.Group("image")
+		imageHandler := handlers.ImageHandler{}
+		{
+			images.POST("/avatar", imageHandler.StoreAvatar)
+			images.POST("/gallery", imageHandler.StoreGallery)
+			images.DELETE("/:id", imageHandler.Destroy)
+		}
 	}
 	router.GET("health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "ok"})
