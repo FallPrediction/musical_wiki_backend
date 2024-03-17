@@ -10,6 +10,7 @@ func main() {
 	initialize.InitDatabase()
 	initialize.InitTranslator()
 	initialize.InitRedis()
+	initialize.InitS3()
 
 	r := router.InitRouter()
 
