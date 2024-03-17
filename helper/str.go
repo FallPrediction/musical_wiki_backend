@@ -8,6 +8,9 @@ type Str struct{}
 
 // Get a non-cryptographically secure random string.
 func (str *Str) Random(length int) string {
+	if length <= 0 {
+		return ""
+	}
 	const characters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	result := make([]byte, length)
 	for i := range result {

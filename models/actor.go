@@ -16,7 +16,8 @@ type Actor struct {
 	Born           string
 	Content        string
 	Credits        []Credit
-	Avatar         string
+	Avatar         Image
+	Gallery        []Image
 	Socials        datatypes.JSON
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
