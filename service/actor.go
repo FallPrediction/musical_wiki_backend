@@ -87,7 +87,6 @@ func (service *ActorService) Store(request *request.Actor) (models.Actor, error)
 		NickName:       request.NickName,
 		Nationality:    request.Nationality,
 		Born:           request.Born,
-		ImageId:        request.ImageId,
 		Content:        request.Content,
 		Socials:        request.Socials,
 	}
@@ -101,7 +100,6 @@ func (service *ActorService) Update(id string, request *request.Actor) error {
 		NickName:       request.NickName,
 		Nationality:    request.Nationality,
 		Born:           request.Born,
-		ImageId:        request.ImageId,
 		Content:        request.Content,
 		Socials:        request.Socials,
 	}

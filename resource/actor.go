@@ -20,7 +20,7 @@ func (resource *ActorResource) ToMap() map[string]interface{} {
 		"nickName":       resource.Model.NickName,
 		"nationality":    resource.Model.Nationality,
 		"born":           resource.Model.Born,
-		"imageId":        resource.Model.ImageId,
+		"avatar":         resource.Model.Avatar,
 		"content":        resource.Model.Content,
 		"credits":        resource.Model.Credits,
 		"socials":        resource.Model.Socials,
