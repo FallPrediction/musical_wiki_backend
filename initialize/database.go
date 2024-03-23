@@ -13,7 +13,7 @@ var (
 )
 
 func InitDatabase() {
-	global.Db, err = gorm.Open(postgres.Open(config.Pgsql), &gorm.Config{})
+	global.Db, err = gorm.Open(postgres.Open(config.NewPg().Dsn()), &gorm.Config{})
 	if err != nil || global.Db == nil {
 		global.Logger.Error("db init error", err)
 	}
