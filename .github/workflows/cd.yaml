@@ -1,11 +1,11 @@
-name: Build and upload to S3
+name: Deploy
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build
+    name: Deploy
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
@@ -20,7 +20,7 @@ jobs:
         run: go build -o ${{ vars.APP_NAME }}
 
       - name: Compression
-        run: tar -czvf ${{ vars.APP_NAME }}.tgz ${{ vars.APP_NAME }} appspec.yml scripts musical_wiki.service
+        run: tar -czvf ${{ vars.APP_NAME }}.tgz ${{ vars.APP_NAME }} appspec.yml deployments/codeDeploy/scripts deployments/codeDeploy/musical_wiki.service
 
       - name: Upload to S3
         run: aws s3 cp ./${{ vars.APP_NAME }}.tgz s3://${{ vars.S3_BUCKET }}/${{ vars.APP_NAME }}.tgz

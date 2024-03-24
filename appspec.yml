@@ -4,17 +4,17 @@ files:
   - source: /
     destination: /var/app/
     file_exists_behavior: OVERWRITE
-  - source: musical_wiki.service
+  - source: deployments/codeDeploy/musical_wiki.service
     destination: /etc/systemd/system
     file_exists_behavior: OVERWRITE
 
 hooks:
   AfterInstall:
-    - location: scripts/change_permissions.sh
-    - location: scripts/update_env.sh
+    - location: deployments/codeDeploy/scripts/change_permissions.sh
+    - location: deployments/codeDeploy/scripts/update_env.sh
       timeout: 120
       runas: root
   ApplicationStart:
-    - location: scripts/start_app.sh
+    - location: deployments/codeDeploy/scripts/start_app.sh
       timeout: 120
       runas: root

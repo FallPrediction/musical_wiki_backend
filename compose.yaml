@@ -15,7 +15,7 @@ services:
       - go-docker-net
   app:
     build:
-      dockerfile: Dockerfile
+      dockerfile: ./deployments/local/backend/Dockerfile
       context: .
     volumes:
       - ./:/app
@@ -34,8 +34,8 @@ services:
     ports:
       - 6379:6379
     volumes:
-      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
-      - ./redis/users.acl:/etc/redis/users.acl
+      - ./deployments/local/redis/users.acl:/etc/redis/users.acl
+      - ./deployments/local/redis/redis.conf:/usr/local/etc/redis/redis.conf
     networks:
         - go-docker-net
   nginx:
@@ -45,7 +45,7 @@ services:
     ports:
       - 80:80
     volumes:
-      - ./nginx/conf.d/:/etc/nginx/conf.d
+      - ./deployments/local/nginx/conf.d/:/etc/nginx/conf.d
     networks:
         - go-docker-net
 
