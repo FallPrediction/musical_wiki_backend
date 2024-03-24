@@ -60,7 +60,6 @@ func (service *ActorService) Show(id string) (models.Actor, error) {
 			global.Logger.Warn("json unmarshal error", err)
 		} else {
 			service.loadCredits(&cacheActor)
-			service.loadAvatar(&cacheActor)
 			service.loadGallery(&cacheActor)
 			return cacheActor, nil
 		}
@@ -79,7 +78,6 @@ func (service *ActorService) Show(id string) (models.Actor, error) {
 		}
 	}
 	service.loadCredits(&actor)
-	service.loadAvatar(&actor)
 	service.loadGallery(&actor)
 	return actor, actorErr
 }
@@ -146,14 +144,6 @@ func (service *ActorService) loadCredits(actor *models.Actor) {
 	credits, creditsErr := creditService.IndexByActorId(strconv.Itoa(int(actor.Id)))
 	if creditsErr == nil {
 		actor.Credits = credits
-	}
-}
-
-func (service *ActorService) loadAvatar(actor *models.Actor) {
-	imageService := ImageService{}
-	avatar, avatarErr := imageService.repo.ShowAvatar(fmt.Sprint(actor.Id))
-	if avatarErr == nil {
-		actor.Avatar = avatar
 	}
 }
 

@@ -24,9 +24,21 @@ func (resource *ActorResource) ToMap() map[string]interface{} {
 		"born":           resource.Model.Born,
 		"avatar":         fmt.Sprint(config.Endpoint, "/", resource.Model.Avatar.ImageName),
 		"content":        resource.Model.Content,
-		"credits":        resource.Model.Credits,
 		"socials":        resource.Model.Socials,
 	}
+
+	credits := make([]map[string]interface{}, len(resource.Model.Credits))
+	for i, c := range resource.Model.Credits {
+		credits[i] = map[string]interface{}{
+			"id":        c.Id,
+			"time":      c.Time,
+			"place":     c.Place,
+			"character": c.Character,
+			"musical":   c.Musical,
+		}
+	}
+	actor["credits"] = credits
+
 	gallery := make([]map[string]interface{}, len(resource.Model.Gallery))
 	for i, g := range resource.Model.Gallery {
 		gallery[i] = map[string]interface{}{
@@ -45,6 +57,7 @@ func (resource *ActorSliceResource) ToSliceResource() []map[string]interface{} {
 			"id":             m.Id,
 			"name":           m.Name,
 			"translatedName": m.TranslatedName,
+			"avatar":         fmt.Sprint(config.Endpoint, "/", m.Avatar.ImageName),
 		}
 	}
 	return result

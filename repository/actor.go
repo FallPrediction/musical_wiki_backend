@@ -11,13 +11,13 @@ func (repository *ActorRepository) Index(currentPage int, perPage int) ([]models
 	var actors []models.Actor
 	var count int64
 	global.Db.Model(&models.Actor{}).Count(&count)
-	err := global.Db.Order("id").Limit(perPage).Offset((currentPage - 1) * perPage).Find(&actors).Error
+	err := global.Db.Order("id").Limit(perPage).Offset((currentPage-1)*perPage).Preload("Avatar", "image_type = ?", "AVATAR").Find(&actors).Error
 	return actors, count, err
 }
 
 func (repository *ActorRepository) Show(id string) (models.Actor, error) {
 	var actor models.Actor
-	err := global.Db.Where("id = ?", id).First(&actor).Error
+	err := global.Db.Where("id = ?", id).Preload("Avatar", "image_type = ?", "AVATAR").First(&actor).Error
 	return actor, err
 }
 
