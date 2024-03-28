@@ -3,14 +3,14 @@ package initialize
 import (
 	"context"
 	"fmt"
-	"musical_wiki/global"
 	"os"
 	"strconv"
 
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
-func InitRedis() {
+func NewRedis(logger *zap.SugaredLogger) *redis.Client {
 	redisDB, err := strconv.Atoi(os.Getenv("REDIS_DB"))
 	if err != nil {
 		redisDB = 0
@@ -22,8 +22,9 @@ func InitRedis() {
 	})
 	_, err = client.Ping(context.Background()).Result()
 	if err != nil {
-		global.Logger.Error("redis connect ping failed, err: ", err)
+		logger.Error("redis connect ping failed, err: ", err)
 	} else {
-		global.Redis = client
+		return client
 	}
+	return nil
 }

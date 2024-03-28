@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"musical_wiki/global"
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 	"musical_wiki/models"
 	"musical_wiki/repository"
 	"musical_wiki/request"
@@ -12,19 +13,21 @@ import (
 )
 
 type CreditService struct {
-	repo repository.CreditRepository
+	repo   repository.CreditRepository
+	logger *zap.SugaredLogger
+	redis  *redis.Client
 }
 
 func (service *CreditService) IndexByActorId(actorId string) ([]models.Credit, error) {
 	key := fmt.Sprint("creditList:actorId=", actorId)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	bytes, err := global.Redis.Get(ctx, key).Bytes()
+	bytes, err := service.redis.Get(ctx, key).Bytes()
 	if err == nil {
 		var cacheCredits []models.Credit
 		err = json.Unmarshal(bytes, &cacheCredits)
 		if err != nil {
-			global.Logger.Warn("json unmarshal error", err)
+			service.logger.Warn("json unmarshal error", err)
 		} else {
 			return cacheCredits, nil
 		}
@@ -35,11 +38,11 @@ func (service *CreditService) IndexByActorId(actorId string) ([]models.Credit, e
 	if creditsErr == nil {
 		bytes, err = json.Marshal(credits)
 		if err != nil {
-			global.Logger.Warn("json marshal error", err)
+			service.logger.Warn("json marshal error", err)
 		} else {
 			ctx, cancel = context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
-			global.Redis.Set(ctx, key, bytes, 24*time.Hour)
+			service.redis.Set(ctx, key, bytes, 24*time.Hour)
 		}
 	}
 	return credits, creditsErr
@@ -77,11 +80,15 @@ func (service *CreditService) Destroy(id string) error {
 func (service *CreditService) delCreditListCache() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	iter := global.Redis.Scan(ctx, 0, "creditList:actorId=*", 0).Iterator()
+	iter := service.redis.Scan(ctx, 0, "creditList:actorId=*", 0).Iterator()
 	for iter.Next(ctx) {
-		global.Redis.Del(ctx, iter.Val())
+		service.redis.Del(ctx, iter.Val())
 	}
 	if ctx.Err() == context.DeadlineExceeded {
-		global.Logger.Warn("delCreditListCache timeout")
+		service.logger.Warn("delCreditListCache timeout")
 	}
+}
+
+func NewCreditService(repo repository.CreditRepository, logger *zap.SugaredLogger, redis *redis.Client) CreditService {
+	return CreditService{repo: repo, logger: logger, redis: redis}
 }

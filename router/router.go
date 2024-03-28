@@ -7,14 +7,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func InitRouter() *gin.Engine {
+func NewRouter(actorHandler handlers.ActorHandler, creditHandler handlers.CreditHandler, imageHandler handlers.ImageHandler) *gin.Engine {
 	router := gin.Default()
 	router.Use(middleware.Cors())
 
 	apis := router.Group("api")
 	{
 		actors := apis.Group("actor")
-		actorHandler := handlers.ActorHandler{}
 		{
 			actors.GET("", actorHandler.Index)
 			actors.GET("/:id", actorHandler.Show)
@@ -23,14 +22,12 @@ func InitRouter() *gin.Engine {
 			actors.DELETE("/:id", actorHandler.Destroy)
 		}
 		credits := apis.Group("credit")
-		creditHandler := handlers.CreditHandler{}
 		{
 			credits.POST("", creditHandler.Store)
 			credits.PUT("/:id", creditHandler.Update)
 			credits.DELETE("/:id", creditHandler.Destroy)
 		}
 		images := apis.Group("image")
-		imageHandler := handlers.ImageHandler{}
 		{
 			images.POST("/avatar", imageHandler.StoreAvatar)
 			images.POST("/gallery", imageHandler.StoreGallery)

@@ -2,16 +2,16 @@ package initialize
 
 import (
 	"context"
-	"musical_wiki/global"
 
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"go.uber.org/zap"
 )
 
-func InitS3() {
+func NewS3(logger *zap.SugaredLogger) *s3.Client {
 	cfg, err := awsConfig.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		global.Logger.Error("unable to load SDK config", err)
+		logger.Error("unable to load SDK config", err)
 	}
-	global.S3 = s3.NewFromConfig(cfg)
+	return s3.NewFromConfig(cfg)
 }

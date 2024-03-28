@@ -1,18 +1,36 @@
 package main
 
 import (
+	"musical_wiki/config"
+	"musical_wiki/handlers"
 	"musical_wiki/initialize"
+	"musical_wiki/repository"
 	"musical_wiki/router"
+	"musical_wiki/service"
 )
 
 func main() {
-	initialize.InitLogger()
-	initialize.InitDatabase()
-	initialize.InitTranslator()
-	initialize.InitRedis()
-	initialize.InitS3()
+	logger := initialize.NewLogger()
+	redis := initialize.NewRedis(logger)
+	db := initialize.NewDB(config.NewPg(), logger)
+	s3 := initialize.NewS3(logger)
+	translator := initialize.NewTranslator(logger)
 
-	r := router.InitRouter()
+	baseHandler := handlers.NewBaseHandler(logger, translator)
+
+	creditRepository := repository.NewCreditRepository(db)
+	creditService := service.NewCreditService(creditRepository, logger, redis)
+	creditHandler := handlers.NewCreditHandler(baseHandler, creditService)
+
+	imageRepository := repository.NewImageRepository(db)
+	imageService := service.NewImageService(imageRepository, logger, redis, s3)
+	imageHandler := handlers.NewImageHandler(baseHandler, imageService)
+
+	actorRepository := repository.NewActorRepository(db)
+	actorService := service.NewActorService(actorRepository, logger, redis, creditService, imageService)
+	actorHandler := handlers.NewActorHandler(baseHandler, actorService)
+
+	r := router.NewRouter(actorHandler, creditHandler, imageHandler)
 
 	r.Run()
 }

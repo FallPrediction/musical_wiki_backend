@@ -4,28 +4,34 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"musical_wiki/global"
 	"musical_wiki/models"
 	"musical_wiki/repository"
 	"musical_wiki/request"
 	"strconv"
 	"time"
+
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 type ActorService struct {
-	repo repository.ActorRepository
+	repo          repository.ActorRepository
+	logger        *zap.SugaredLogger
+	redis         *redis.Client
+	creditService CreditService
+	imageService  ImageService
 }
 
 func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor, int64, error) {
 	key := fmt.Sprintf("actorsList:size=%v:currPage=%v", perPage, currentPage)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	cache, err := global.Redis.HGetAll(ctx, key).Result()
+	cache, err := service.redis.HGetAll(ctx, key).Result()
 	if err == nil {
 		var cacheActors []models.Actor
 		err = json.Unmarshal([]byte(cache["actors"]), &cacheActors)
 		if err != nil {
-			global.Logger.Warn("json unmarshal error", err)
+			service.logger.Warn("json unmarshal error", err)
 		} else {
 			count, _ := strconv.ParseInt(cache["count"], 10, 64)
 			return cacheActors, count, nil
@@ -37,12 +43,12 @@ func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor
 	if actorsErr == nil {
 		bytes, err := json.Marshal(actors)
 		if err != nil {
-			global.Logger.Warn("json marshal error", err)
+			service.logger.Warn("json marshal error", err)
 		} else {
 			ctx, cancel = context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
-			global.Redis.HSet(ctx, key, "actors", bytes, "count", count)
-			global.Redis.Expire(ctx, key, 24*time.Hour)
+			service.redis.HSet(ctx, key, "actors", bytes, "count", count)
+			service.redis.Expire(ctx, key, 24*time.Hour)
 		}
 	}
 	return actors, count, actorsErr
@@ -52,12 +58,12 @@ func (service *ActorService) Show(id string) (models.Actor, error) {
 	key := fmt.Sprintf("actor:%v", id)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	bytes, err := global.Redis.Get(ctx, key).Bytes()
+	bytes, err := service.redis.Get(ctx, key).Bytes()
 	if err == nil {
 		var cacheActor models.Actor
 		err = json.Unmarshal(bytes, &cacheActor)
 		if err != nil {
-			global.Logger.Warn("json unmarshal error", err)
+			service.logger.Warn("json unmarshal error", err)
 		} else {
 			service.loadCredits(&cacheActor)
 			service.loadGallery(&cacheActor)
@@ -70,11 +76,11 @@ func (service *ActorService) Show(id string) (models.Actor, error) {
 	if actorErr == nil {
 		bytes, err = json.Marshal(actor)
 		if err != nil {
-			global.Logger.Warn("json marshal error", err)
+			service.logger.Warn("json marshal error", err)
 		} else {
 			ctx, cancel = context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
-			global.Redis.Set(ctx, key, bytes, 24*time.Hour)
+			service.redis.Set(ctx, key, bytes, 24*time.Hour)
 		}
 	}
 	service.loadCredits(&actor)
@@ -121,36 +127,38 @@ func (service *ActorService) delActorCache(id string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	key := fmt.Sprintf("actor:%v", id)
-	global.Redis.Del(ctx, key)
+	service.redis.Del(ctx, key)
 	if ctx.Err() == context.DeadlineExceeded {
-		global.Logger.Warn("delActorCache timeout", key)
+		service.logger.Warn("delActorCache timeout", key)
 	}
 }
 
 func (service *ActorService) delActorsListCache() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	iter := global.Redis.Scan(ctx, 0, "actorsList:size=*:currPage=*", 0).Iterator()
+	iter := service.redis.Scan(ctx, 0, "actorsList:size=*:currPage=*", 0).Iterator()
 	for iter.Next(ctx) {
-		global.Redis.Del(ctx, iter.Val())
+		service.redis.Del(ctx, iter.Val())
 	}
 	if ctx.Err() == context.DeadlineExceeded {
-		global.Logger.Warn("delActorsListCache timeout")
+		service.logger.Warn("delActorsListCache timeout")
 	}
 }
 
 func (service *ActorService) loadCredits(actor *models.Actor) {
-	creditService := CreditService{}
-	credits, creditsErr := creditService.IndexByActorId(strconv.Itoa(int(actor.Id)))
+	credits, creditsErr := service.creditService.IndexByActorId(strconv.Itoa(int(actor.Id)))
 	if creditsErr == nil {
 		actor.Credits = credits
 	}
 }
 
 func (service *ActorService) loadGallery(actor *models.Actor) {
-	ImageService := ImageService{}
-	gallery, galleryErr := ImageService.repo.IndexGallery(fmt.Sprint(actor.Id))
+	gallery, galleryErr := service.imageService.repo.IndexGallery(fmt.Sprint(actor.Id))
 	if galleryErr == nil {
 		actor.Gallery = gallery
 	}
+}
+
+func NewActorService(repo repository.ActorRepository, logger *zap.SugaredLogger, redis *redis.Client, creditService CreditService, imageService ImageService) ActorService {
+	return ActorService{repo: repo, logger: logger, redis: redis, creditService: creditService, imageService: imageService}
 }

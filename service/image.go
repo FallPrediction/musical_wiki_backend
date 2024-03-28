@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"musical_wiki/config"
-	"musical_wiki/global"
 	"musical_wiki/helper"
 	"musical_wiki/models"
 	"musical_wiki/repository"
@@ -16,23 +15,28 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type ImageService struct {
-	repo repository.ImageRepository
+	repo   repository.ImageRepository
+	logger *zap.SugaredLogger
+	redis  *redis.Client
+	s3     *s3.Client
 }
 
 func (service *ImageService) IndexGallery(actorId string) ([]models.Image, error) {
 	key := fmt.Sprint("imageGallery:actorId=", actorId)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	cacheBytes, err := global.Redis.Get(ctx, key).Bytes()
+	cacheBytes, err := service.redis.Get(ctx, key).Bytes()
 	if err == nil {
 		var cacheImages []models.Image
 		err = json.Unmarshal(cacheBytes, &cacheImages)
 		if err != nil {
-			global.Logger.Warn("json unmarshal error", err)
+			service.logger.Warn("json unmarshal error", err)
 		} else {
 			return cacheImages, nil
 		}
@@ -43,11 +47,11 @@ func (service *ImageService) IndexGallery(actorId string) ([]models.Image, error
 	if imagesErr == nil {
 		cacheBytes, err = json.Marshal(images)
 		if err != nil {
-			global.Logger.Warn("json marshal error", err)
+			service.logger.Warn("json marshal error", err)
 		} else {
 			ctx, cancel = context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
-			global.Redis.Set(ctx, key, cacheBytes, 24*time.Hour)
+			service.redis.Set(ctx, key, cacheBytes, 24*time.Hour)
 		}
 	}
 	return images, imagesErr
@@ -57,12 +61,12 @@ func (service *ImageService) ShowAvatar(actorId string) (models.Image, error) {
 	key := fmt.Sprint("imageAvatar:actorId=", actorId)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	cacheBytes, err := global.Redis.Get(ctx, key).Bytes()
+	cacheBytes, err := service.redis.Get(ctx, key).Bytes()
 	if err == nil {
 		var cacheImage models.Image
 		err = json.Unmarshal(cacheBytes, &cacheImage)
 		if err != nil {
-			global.Logger.Warn("json unmarshal error", err)
+			service.logger.Warn("json unmarshal error", err)
 		} else {
 			return cacheImage, nil
 		}
@@ -73,11 +77,11 @@ func (service *ImageService) ShowAvatar(actorId string) (models.Image, error) {
 	if imagesErr == nil {
 		cacheBytes, err = json.Marshal(image)
 		if err != nil {
-			global.Logger.Warn("json marshal error", err)
+			service.logger.Warn("json marshal error", err)
 		} else {
 			ctx, cancel = context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
-			global.Redis.Set(ctx, key, cacheBytes, 24*time.Hour)
+			service.redis.Set(ctx, key, cacheBytes, 24*time.Hour)
 		}
 	}
 	return image, imagesErr
@@ -85,7 +89,7 @@ func (service *ImageService) ShowAvatar(actorId string) (models.Image, error) {
 
 func (service *ImageService) UpdateAvatar(request *request.Image) (models.Image, error) {
 	// Upload new avatar
-	uploader := manager.NewUploader(global.S3)
+	uploader := manager.NewUploader(service.s3)
 	file := helper.NewFile(request.Name, request.Image)
 	imageDecode, err := file.Decode()
 	if err != nil {
@@ -117,12 +121,12 @@ func (service *ImageService) UpdateAvatar(request *request.Image) (models.Image,
 
 		// Delete old avatar
 		if oldImageErr == nil {
-			_, deleteErr := global.S3.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+			_, deleteErr := service.s3.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
 				Bucket: &config.Bucket,
 				Key:    &oldImage.ImageName,
 			})
 			if deleteErr != nil {
-				global.Logger.Warn("S3 remove failed: ", oldImage.ImageName)
+				service.logger.Warn("S3 remove failed: ", oldImage.ImageName)
 			}
 		}
 	}
@@ -136,7 +140,7 @@ func (service *ImageService) UpdateAvatar(request *request.Image) (models.Image,
 
 func (service *ImageService) StoreGallery(request *request.Image) (models.Image, error) {
 	// Upload new image
-	uploader := manager.NewUploader(global.S3)
+	uploader := manager.NewUploader(service.s3)
 	file := helper.NewFile(request.Name, request.Image)
 	imageDecode, err := file.Decode()
 	if err != nil {
@@ -174,7 +178,7 @@ func (service *ImageService) Destroy(id string) error {
 		return err
 	}
 
-	global.S3.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+	service.s3.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
 		Bucket: &config.Bucket,
 		Key:    &image.ImageName,
 	})
@@ -189,15 +193,19 @@ func (service *ImageService) Destroy(id string) error {
 func (service *ImageService) delImageCache(actorId string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	key := fmt.Sprintf("imageAvatar:actorId=%v", actorId)
-	global.Redis.Del(ctx, key)
+	service.redis.Del(ctx, key)
 	if ctx.Err() == context.DeadlineExceeded {
-		global.Logger.Warn("delAvatarCache timeout", key)
+		service.logger.Warn("delAvatarCache timeout", key)
 	}
 	cancel()
 	key = fmt.Sprintf("imageGallery:actorId=%v", actorId)
-	global.Redis.Del(ctx, key)
+	service.redis.Del(ctx, key)
 	if ctx.Err() == context.DeadlineExceeded {
-		global.Logger.Warn("delGalleryCache timeout", key)
+		service.logger.Warn("delGalleryCache timeout", key)
 	}
 	cancel()
+}
+
+func NewImageService(repo repository.ImageRepository, logger *zap.SugaredLogger, redis *redis.Client, s3 *s3.Client) ImageService {
+	return ImageService{repo: repo, logger: logger, redis: redis, s3: s3}
 }

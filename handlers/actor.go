@@ -11,14 +11,15 @@ import (
 )
 
 type ActorHandler struct {
-	service service.ActorService
+	baseHandler Handler
+	service     service.ActorService
 }
 
 func (handler *ActorHandler) Index(c *gin.Context) {
 	var request request.IndexActor
 	err := c.ShouldBind(&request)
 	if err != nil {
-		handleError(err, c)
+		handler.baseHandler.handleError(err, c)
 		return
 	}
 	if request.CurrentPage == nil {
@@ -32,18 +33,18 @@ func (handler *ActorHandler) Index(c *gin.Context) {
 
 	actors, count, err := handler.service.Index(*request.CurrentPage, *request.PerPage)
 
-	handleErrorAndReturn(err, c, func() {
+	handler.baseHandler.handleErrorAndReturn(err, c, func() {
 		resource := resource.ActorSliceResource{ModelSlice: actors}
-		sendResponseWithPagination(c, http.StatusOK, "成功", resource.ToSliceResource(), *request.CurrentPage, *request.PerPage, int(count))
+		handler.baseHandler.sendResponseWithPagination(c, http.StatusOK, "成功", resource.ToSliceResource(), *request.CurrentPage, *request.PerPage, int(count))
 	})
 }
 
 func (handler *ActorHandler) Show(c *gin.Context) {
 	id := c.Param("id")
 	actor, err := handler.service.Show(id)
-	handleErrorAndReturn(err, c, func() {
+	handler.baseHandler.handleErrorAndReturn(err, c, func() {
 		resource := resource.ActorResource{Model: actor}
-		sendResponse(c, http.StatusOK, "成功", resource.ToMap())
+		handler.baseHandler.sendResponse(c, http.StatusOK, "成功", resource.ToMap())
 	})
 }
 
@@ -51,12 +52,12 @@ func (handler *ActorHandler) Store(c *gin.Context) {
 	var request request.Actor
 	err := c.ShouldBind(&request)
 	if err != nil {
-		handleError(err, c)
+		handler.baseHandler.handleError(err, c)
 		return
 	}
 	actor, err := handler.service.Store(&request)
-	handleErrorAndReturn(err, c, func() {
-		sendResponse(c, http.StatusCreated, "成功", map[string]models.Actor{"actor": actor})
+	handler.baseHandler.handleErrorAndReturn(err, c, func() {
+		handler.baseHandler.sendResponse(c, http.StatusCreated, "成功", map[string]models.Actor{"actor": actor})
 	})
 }
 
@@ -64,19 +65,23 @@ func (handler *ActorHandler) Update(c *gin.Context) {
 	id := c.Param("id")
 	var request request.Actor
 	if err := c.ShouldBind(&request); err != nil {
-		handleError(err, c)
+		handler.baseHandler.handleError(err, c)
 		return
 	}
 	err := handler.service.Update(id, &request)
-	handleErrorAndReturn(err, c, func() {
-		sendResponse(c, http.StatusOK, "成功", nil)
+	handler.baseHandler.handleErrorAndReturn(err, c, func() {
+		handler.baseHandler.sendResponse(c, http.StatusOK, "成功", nil)
 	})
 }
 
 func (handler *ActorHandler) Destroy(c *gin.Context) {
 	id := c.Param("id")
 	err := handler.service.Destroy(id)
-	handleErrorAndReturn(err, c, func() {
-		sendResponse(c, http.StatusOK, "成功", nil)
+	handler.baseHandler.handleErrorAndReturn(err, c, func() {
+		handler.baseHandler.sendResponse(c, http.StatusOK, "成功", nil)
 	})
+}
+
+func NewActorHandler(baseHandler Handler, service service.ActorService) ActorHandler {
+	return ActorHandler{baseHandler: baseHandler, service: service}
 }
