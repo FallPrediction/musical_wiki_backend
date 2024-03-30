@@ -132,9 +132,8 @@ func (service *ImageService) UpdateAvatar(request *request.Image) (models.Image,
 	}
 
 	service.delImageCache(fmt.Sprint(request.ActorId))
-	actorService := ActorService{}
-	actorService.delActorCache(fmt.Sprint(request.ActorId))
-	actorService.delActorsListCache()
+	service.delActorCache(fmt.Sprint(request.ActorId))
+	service.delActorsListCache()
 	return image, imageErr
 }
 
@@ -166,9 +165,8 @@ func (service *ImageService) StoreGallery(request *request.Image) (models.Image,
 	imageErr := service.repo.Store(&image)
 
 	service.delImageCache(fmt.Sprint(request.ActorId))
-	actorService := ActorService{}
-	actorService.delActorCache(fmt.Sprint(request.ActorId))
-	actorService.delActorsListCache()
+	service.delActorCache(fmt.Sprint(request.ActorId))
+	service.delActorsListCache()
 	return image, imageErr
 }
 
@@ -184,9 +182,8 @@ func (service *ImageService) Destroy(id string) error {
 	})
 
 	service.delImageCache(fmt.Sprint(image.ActorId))
-	actorService := ActorService{}
-	actorService.delActorCache(fmt.Sprint(image.ActorId))
-	actorService.delActorsListCache()
+	service.delActorCache(fmt.Sprint(image.ActorId))
+	service.delActorsListCache()
 	return service.repo.Destroy(id)
 }
 
@@ -204,6 +201,28 @@ func (service *ImageService) delImageCache(actorId string) {
 		service.logger.Warn("delGalleryCache timeout", key)
 	}
 	cancel()
+}
+
+func (service *ImageService) delActorCache(id string) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	key := fmt.Sprintf("actor:%v", id)
+	service.redis.Del(ctx, key)
+	if ctx.Err() == context.DeadlineExceeded {
+		service.logger.Warn("delActorCache timeout", key)
+	}
+}
+
+func (service *ImageService) delActorsListCache() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	iter := service.redis.Scan(ctx, 0, "actorsList:size=*:currPage=*", 0).Iterator()
+	for iter.Next(ctx) {
+		service.redis.Del(ctx, iter.Val())
+	}
+	if ctx.Err() == context.DeadlineExceeded {
+		service.logger.Warn("delActorsListCache timeout")
+	}
 }
 
 func NewImageService(repo repository.ImageRepository, logger *zap.SugaredLogger, redis *redis.Client, s3 *s3.Client) ImageService {
