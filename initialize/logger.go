@@ -1,10 +1,15 @@
 package initialize
 
 import (
+	"os"
+	"sync"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"os"
 )
+
+var logger *zap.SugaredLogger
+var loggerOnce sync.Once
 
 func getLoggerWriter() zapcore.WriteSyncer {
 	os.MkdirAll("./logs", os.ModePerm)
@@ -20,10 +25,15 @@ func getEncoder() zapcore.Encoder {
 }
 
 func NewLogger() *zap.SugaredLogger {
-	logLevel, err := zapcore.ParseLevel(os.Getenv("LOG_LEVEL"))
-	if err != nil {
-		logLevel = zapcore.InfoLevel
+	if logger == nil {
+		loggerOnce.Do(func() {
+			logLevel, err := zapcore.ParseLevel(os.Getenv("LOG_LEVEL"))
+			if err != nil {
+				logLevel = zapcore.InfoLevel
+			}
+			core := zapcore.NewCore(getEncoder(), getLoggerWriter(), logLevel)
+			logger = zap.New(core).Sugar()
+		})
 	}
-	core := zapcore.NewCore(getEncoder(), getLoggerWriter(), logLevel)
-	return zap.New(core).Sugar()
+	return logger
 }
