@@ -46,6 +46,7 @@ services:
       - 80:80
     volumes:
       - ./deployments/local/nginx/conf.d/:/etc/nginx/conf.d
+      - ${FRONTEND_DIR}/dist/spa:/app
     networks:
         - go-docker-net
 
