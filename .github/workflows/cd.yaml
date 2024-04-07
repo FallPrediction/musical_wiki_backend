@@ -20,10 +20,23 @@ jobs:
         run: go build -o ${{ vars.APP_NAME }}
 
       - name: Compression
-        run: tar -czvf ${{ vars.APP_NAME }}.tgz ${{ vars.APP_NAME }} appspec.yml deployments/codeDeploy/scripts deployments/codeDeploy/musical_wiki.service
+        run: tar -czvf ${{ vars.CODEDEPLOY_DEV_GROUP }}.tgz ${{ vars.APP_NAME }} appspec.yml deployments/codeDeploy/scripts deployments/codeDeploy/musical_wiki.service
 
       - name: Upload to S3
-        run: aws s3 cp ./${{ vars.APP_NAME }}.tgz s3://${{ vars.S3_BUCKET }}/${{ vars.APP_NAME }}.tgz
+        run: aws s3 cp ./${{ vars.CODEDEPLOY_DEV_GROUP }}.tgz s3://${{ vars.S3_BUCKET }}/${{ vars.CODEDEPLOY_DEV_GROUP }}.tgz
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID  }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY  }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION  }}
+
+      - name: Set .env file to SSM parameter store
+        run: |
+          aws ssm put-parameter \
+          --name "/${{ vars.APP_NAME }}/env" \
+          --value "${{ secrets.APP_ENV }}" \
+          --type "SecureString" \
+          --region ${{ secrets.AWS_DEFAULT_REGION  }} \
+          --overwrite
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID  }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY  }}
@@ -35,7 +48,7 @@ jobs:
           --application-name ${{ vars.APP_NAME }} \
           --deployment-config-name CodeDeployDefault.OneAtATime \
           --deployment-group-name ${{ vars.CODEDEPLOY_DEV_GROUP }} \
-          --s3-location bucket=${{ vars.S3_BUCKET }},bundleType=tgz,key=${{ vars.APP_NAME }}.tgz
+          --s3-location bucket=${{ vars.S3_BUCKET }},bundleType=tgz,key=${{ vars.CODEDEPLOY_DEV_GROUP }}.tgz
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID  }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY  }}
