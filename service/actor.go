@@ -7,17 +7,17 @@ import (
 	"musical_wiki/models"
 	"musical_wiki/repository"
 	"musical_wiki/request"
+	"musical_wiki/utils"
 	"strconv"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
 type ActorService struct {
 	repo          repository.ActorRepository
 	logger        *zap.SugaredLogger
-	redis         *redis.Client
+	cache         utils.Cache
 	creditService CreditService
 	imageService  ImageService
 }
@@ -26,7 +26,7 @@ func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor
 	key := fmt.Sprintf("actorsList:size=%v:currPage=%v", perPage, currentPage)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	cache, err := service.redis.HGetAll(ctx, key).Result()
+	cache, err := service.cache.RedisClient.HGetAll(ctx, key).Result()
 	if err == nil {
 		var cacheActors []models.Actor
 		err = json.Unmarshal([]byte(cache["actors"]), &cacheActors)
@@ -37,7 +37,6 @@ func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor
 			return cacheActors, count, nil
 		}
 	}
-	cancel()
 
 	actors, count, actorsErr := service.repo.Index(currentPage, perPage)
 	if actorsErr == nil {
@@ -47,8 +46,8 @@ func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor
 		} else {
 			ctx, cancel = context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
-			service.redis.HSet(ctx, key, "actors", bytes, "count", count)
-			service.redis.Expire(ctx, key, 24*time.Hour)
+			service.cache.RedisClient.HSet(ctx, key, "actors", bytes, "count", count)
+			service.cache.RedisClient.Expire(ctx, key, 24*time.Hour)
 		}
 	}
 	return actors, count, actorsErr
@@ -56,32 +55,17 @@ func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor
 
 func (service *ActorService) Show(id string) (models.Actor, error) {
 	key := fmt.Sprintf("actor:%v", id)
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	bytes, err := service.redis.Get(ctx, key).Bytes()
-	if err == nil {
-		var cacheActor models.Actor
-		err = json.Unmarshal(bytes, &cacheActor)
-		if err != nil {
-			service.logger.Warn("json unmarshal error", err)
-		} else {
-			service.loadCredits(&cacheActor)
-			service.loadGallery(&cacheActor)
-			return cacheActor, nil
-		}
+	var cacheActor models.Actor
+	cacheErr := service.cache.Get(key, &cacheActor)
+	if cacheErr == nil {
+		service.loadCredits(&cacheActor)
+		service.loadGallery(&cacheActor)
+		return cacheActor, nil
 	}
-	cancel()
 
 	actor, actorErr := service.repo.Show(id)
 	if actorErr == nil {
-		bytes, err = json.Marshal(actor)
-		if err != nil {
-			service.logger.Warn("json marshal error", err)
-		} else {
-			ctx, cancel = context.WithTimeout(context.Background(), 500*time.Millisecond)
-			defer cancel()
-			service.redis.Set(ctx, key, bytes, 24*time.Hour)
-		}
+		service.cache.Set(key, actor)
 	}
 	service.loadCredits(&actor)
 	service.loadGallery(&actor)
@@ -124,25 +108,11 @@ func (service *ActorService) Destroy(id string) error {
 }
 
 func (service *ActorService) delActorCache(id string) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	key := fmt.Sprintf("actor:%v", id)
-	service.redis.Del(ctx, key)
-	if ctx.Err() == context.DeadlineExceeded {
-		service.logger.Warn("delActorCache timeout", key)
-	}
+	service.cache.Del(fmt.Sprintf("actor:%v", id))
 }
 
 func (service *ActorService) delActorsListCache() {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	iter := service.redis.Scan(ctx, 0, "actorsList:size=*:currPage=*", 0).Iterator()
-	for iter.Next(ctx) {
-		service.redis.Del(ctx, iter.Val())
-	}
-	if ctx.Err() == context.DeadlineExceeded {
-		service.logger.Warn("delActorsListCache timeout")
-	}
+	service.cache.ScanAndDel("actorsList:size=*:currPage=*")
 }
 
 func (service *ActorService) loadCredits(actor *models.Actor) {
@@ -159,6 +129,6 @@ func (service *ActorService) loadGallery(actor *models.Actor) {
 	}
 }
 
-func NewActorService(repo repository.ActorRepository, logger *zap.SugaredLogger, redis *redis.Client, creditService CreditService, imageService ImageService) ActorService {
-	return ActorService{repo: repo, logger: logger, redis: redis, creditService: creditService, imageService: imageService}
+func NewActorService(repo repository.ActorRepository, logger *zap.SugaredLogger, cache utils.Cache, creditService CreditService, imageService ImageService) ActorService {
+	return ActorService{repo: repo, logger: logger, cache: cache, creditService: creditService, imageService: imageService}
 }

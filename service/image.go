@@ -1,8 +1,6 @@
 package service
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"musical_wiki/helper"
@@ -10,9 +8,7 @@ import (
 	"musical_wiki/repository"
 	"musical_wiki/request"
 	"musical_wiki/utils"
-	"time"
 
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -20,66 +16,36 @@ import (
 type ImageService struct {
 	repo     repository.ImageRepository
 	logger   *zap.SugaredLogger
-	redis    *redis.Client
 	uploader utils.Uploader
+	cache    utils.Cache
 }
 
 func (service *ImageService) IndexGallery(actorId string) ([]models.Image, error) {
 	key := fmt.Sprint("imageGallery:actorId=", actorId)
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	cacheBytes, err := service.redis.Get(ctx, key).Bytes()
-	if err == nil {
-		var cacheImages []models.Image
-		err = json.Unmarshal(cacheBytes, &cacheImages)
-		if err != nil {
-			service.logger.Warn("json unmarshal error", err)
-		} else {
-			return cacheImages, nil
-		}
+	var cacheImages []models.Image
+	cacheErr := service.cache.Get(key, &cacheImages)
+	if cacheErr == nil {
+		return cacheImages, nil
 	}
-	cancel()
 
 	images, imagesErr := service.repo.IndexGallery(actorId)
 	if imagesErr == nil {
-		cacheBytes, err = json.Marshal(images)
-		if err != nil {
-			service.logger.Warn("json marshal error", err)
-		} else {
-			ctx, cancel = context.WithTimeout(context.Background(), 500*time.Millisecond)
-			defer cancel()
-			service.redis.Set(ctx, key, cacheBytes, 24*time.Hour)
-		}
+		service.cache.Set(key, images)
 	}
 	return images, imagesErr
 }
 
 func (service *ImageService) ShowAvatar(actorId string) (models.Image, error) {
 	key := fmt.Sprint("imageAvatar:actorId=", actorId)
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	cacheBytes, err := service.redis.Get(ctx, key).Bytes()
-	if err == nil {
-		var cacheImage models.Image
-		err = json.Unmarshal(cacheBytes, &cacheImage)
-		if err != nil {
-			service.logger.Warn("json unmarshal error", err)
-		} else {
-			return cacheImage, nil
-		}
+	var cacheImage models.Image
+	cacheErr := service.cache.Get(key, &cacheImage)
+	if cacheErr == nil {
+		return cacheImage, nil
 	}
-	cancel()
 
 	image, imagesErr := service.repo.ShowAvatar(actorId)
 	if imagesErr == nil {
-		cacheBytes, err = json.Marshal(image)
-		if err != nil {
-			service.logger.Warn("json marshal error", err)
-		} else {
-			ctx, cancel = context.WithTimeout(context.Background(), 500*time.Millisecond)
-			defer cancel()
-			service.redis.Set(ctx, key, cacheBytes, 24*time.Hour)
-		}
+		service.cache.Set(key, image)
 	}
 	return image, imagesErr
 }
@@ -162,43 +128,18 @@ func (service *ImageService) Destroy(id string) error {
 }
 
 func (service *ImageService) delImageCache(actorId string) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	key := fmt.Sprintf("imageAvatar:actorId=%v", actorId)
-	service.redis.Del(ctx, key)
-	if ctx.Err() == context.DeadlineExceeded {
-		service.logger.Warn("delAvatarCache timeout", key)
-	}
-	cancel()
-	key = fmt.Sprintf("imageGallery:actorId=%v", actorId)
-	service.redis.Del(ctx, key)
-	if ctx.Err() == context.DeadlineExceeded {
-		service.logger.Warn("delGalleryCache timeout", key)
-	}
-	cancel()
+	service.cache.Del(fmt.Sprintf("imageAvatar:actorId=%v", actorId))
+	service.cache.Del(fmt.Sprintf("imageGallery:actorId=%v", actorId))
 }
 
 func (service *ImageService) delActorCache(id string) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	key := fmt.Sprintf("actor:%v", id)
-	service.redis.Del(ctx, key)
-	if ctx.Err() == context.DeadlineExceeded {
-		service.logger.Warn("delActorCache timeout", key)
-	}
+	service.cache.Del(fmt.Sprintf("actor:%v", id))
 }
 
 func (service *ImageService) delActorsListCache() {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	iter := service.redis.Scan(ctx, 0, "actorsList:size=*:currPage=*", 0).Iterator()
-	for iter.Next(ctx) {
-		service.redis.Del(ctx, iter.Val())
-	}
-	if ctx.Err() == context.DeadlineExceeded {
-		service.logger.Warn("delActorsListCache timeout")
-	}
+	service.cache.ScanAndDel("actorsList:size=*:currPage=*")
 }
 
-func NewImageService(repo repository.ImageRepository, logger *zap.SugaredLogger, redis *redis.Client, uploader utils.Uploader) ImageService {
-	return ImageService{repo: repo, logger: logger, redis: redis, uploader: uploader}
+func NewImageService(repo repository.ImageRepository, logger *zap.SugaredLogger, uploader utils.Uploader, cache utils.Cache) ImageService {
+	return ImageService{repo: repo, logger: logger, uploader: uploader, cache: cache}
 }

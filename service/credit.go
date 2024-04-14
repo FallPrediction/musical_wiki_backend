@@ -1,49 +1,32 @@
 package service
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 	"musical_wiki/models"
 	"musical_wiki/repository"
 	"musical_wiki/request"
-	"time"
+	"musical_wiki/utils"
+
+	"go.uber.org/zap"
 )
 
 type CreditService struct {
 	repo   repository.CreditRepository
 	logger *zap.SugaredLogger
-	redis  *redis.Client
+	cache  utils.Cache
 }
 
 func (service *CreditService) IndexByActorId(actorId string) ([]models.Credit, error) {
 	key := fmt.Sprint("creditList:actorId=", actorId)
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	bytes, err := service.redis.Get(ctx, key).Bytes()
-	if err == nil {
-		var cacheCredits []models.Credit
-		err = json.Unmarshal(bytes, &cacheCredits)
-		if err != nil {
-			service.logger.Warn("json unmarshal error", err)
-		} else {
-			return cacheCredits, nil
-		}
+	var cacheCredits []models.Credit
+	cacheErr := service.cache.Get(key, &cacheCredits)
+	if cacheErr == nil {
+		return cacheCredits, nil
 	}
-	cancel()
 
 	credits, creditsErr := service.repo.IndexByActorId(actorId)
 	if creditsErr == nil {
-		bytes, err = json.Marshal(credits)
-		if err != nil {
-			service.logger.Warn("json marshal error", err)
-		} else {
-			ctx, cancel = context.WithTimeout(context.Background(), 500*time.Millisecond)
-			defer cancel()
-			service.redis.Set(ctx, key, bytes, 24*time.Hour)
-		}
+		service.cache.Set(key, credits)
 	}
 	return credits, creditsErr
 }
@@ -78,17 +61,9 @@ func (service *CreditService) Destroy(id string) error {
 }
 
 func (service *CreditService) delCreditListCache() {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	iter := service.redis.Scan(ctx, 0, "creditList:actorId=*", 0).Iterator()
-	for iter.Next(ctx) {
-		service.redis.Del(ctx, iter.Val())
-	}
-	if ctx.Err() == context.DeadlineExceeded {
-		service.logger.Warn("delCreditListCache timeout")
-	}
+	service.cache.ScanAndDel("creditList:actorId=*")
 }
 
-func NewCreditService(repo repository.CreditRepository, logger *zap.SugaredLogger, redis *redis.Client) CreditService {
-	return CreditService{repo: repo, logger: logger, redis: redis}
+func NewCreditService(repo repository.CreditRepository, logger *zap.SugaredLogger, cache utils.Cache) CreditService {
+	return CreditService{repo: repo, logger: logger, cache: cache}
 }

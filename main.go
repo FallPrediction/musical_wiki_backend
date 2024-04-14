@@ -17,19 +17,20 @@ func main() {
 	s3 := initialize.NewS3(logger)
 	translator := initialize.NewTranslator(logger)
 	uploader := utils.NewUploader(s3, logger)
+	cache := utils.NewCache(redis, logger)
 
 	baseHandler := handlers.NewBaseHandler(logger, translator)
 
 	creditRepository := repository.NewCreditRepository(db)
-	creditService := service.NewCreditService(creditRepository, logger, redis)
+	creditService := service.NewCreditService(creditRepository, logger, cache)
 	creditHandler := handlers.NewCreditHandler(baseHandler, creditService)
 
 	imageRepository := repository.NewImageRepository(db)
-	imageService := service.NewImageService(imageRepository, logger, redis, uploader)
+	imageService := service.NewImageService(imageRepository, logger, uploader, cache)
 	imageHandler := handlers.NewImageHandler(baseHandler, imageService)
 
 	actorRepository := repository.NewActorRepository(db)
-	actorService := service.NewActorService(actorRepository, logger, redis, creditService, imageService)
+	actorService := service.NewActorService(actorRepository, logger, cache, creditService, imageService)
 	actorHandler := handlers.NewActorHandler(baseHandler, actorService)
 
 	r := router.NewRouter(actorHandler, creditHandler, imageHandler)
