@@ -30,7 +30,7 @@ func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor
 	if err == nil {
 		var cacheActors []models.Actor
 		err = json.Unmarshal([]byte(cache["actors"]), &cacheActors)
-		if err != nil {
+		if err == nil && len(cache) > 0 {
 			service.logger.Warn("json unmarshal error", err)
 		} else {
 			count, _ := strconv.ParseInt(cache["count"], 10, 64)
