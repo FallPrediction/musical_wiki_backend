@@ -1,30 +1,27 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"musical_wiki/config"
 	"musical_wiki/helper"
 	"musical_wiki/models"
 	"musical_wiki/repository"
 	"musical_wiki/request"
+	"musical_wiki/utils"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type ImageService struct {
-	repo   repository.ImageRepository
-	logger *zap.SugaredLogger
-	redis  *redis.Client
-	s3     *s3.Client
+	repo     repository.ImageRepository
+	logger   *zap.SugaredLogger
+	redis    *redis.Client
+	uploader utils.Uploader
 }
 
 func (service *ImageService) IndexGallery(actorId string) ([]models.Image, error) {
@@ -89,18 +86,8 @@ func (service *ImageService) ShowAvatar(actorId string) (models.Image, error) {
 
 func (service *ImageService) UpdateAvatar(request *request.Image) (models.Image, error) {
 	// Upload new avatar
-	uploader := manager.NewUploader(service.s3)
 	file := helper.NewFile(request.Name, request.Image)
-	imageDecode, err := file.Decode()
-	if err != nil {
-		return models.Image{}, err
-	}
-	fileName := fmt.Sprint(helper.NewStr().Random(10), file.GetExt())
-	_, err = uploader.Upload(context.Background(), &s3.PutObjectInput{
-		Bucket: &config.Bucket,
-		Key:    &fileName,
-		Body:   bytes.NewReader(imageDecode),
-	})
+	fileName, err := service.uploader.Upload(file)
 	if err != nil {
 		return models.Image{}, err
 	}
@@ -121,10 +108,7 @@ func (service *ImageService) UpdateAvatar(request *request.Image) (models.Image,
 
 		// Delete old avatar
 		if oldImageErr == nil {
-			_, deleteErr := service.s3.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
-				Bucket: &config.Bucket,
-				Key:    &oldImage.ImageName,
-			})
+			deleteErr := service.uploader.Delete(oldImage.ImageName)
 			if deleteErr != nil {
 				service.logger.Warn("S3 remove failed: ", oldImage.ImageName)
 			}
@@ -139,18 +123,8 @@ func (service *ImageService) UpdateAvatar(request *request.Image) (models.Image,
 
 func (service *ImageService) StoreGallery(request *request.Image) (models.Image, error) {
 	// Upload new image
-	uploader := manager.NewUploader(service.s3)
 	file := helper.NewFile(request.Name, request.Image)
-	imageDecode, err := file.Decode()
-	if err != nil {
-		return models.Image{}, err
-	}
-	fileName := fmt.Sprint(helper.NewStr().Random(10), file.GetExt())
-	_, err = uploader.Upload(context.Background(), &s3.PutObjectInput{
-		Bucket: &config.Bucket,
-		Key:    &fileName,
-		Body:   bytes.NewReader(imageDecode),
-	})
+	fileName, err := service.uploader.Upload(file)
 	if err != nil {
 		return models.Image{}, err
 	}
@@ -176,10 +150,10 @@ func (service *ImageService) Destroy(id string) error {
 		return err
 	}
 
-	service.s3.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
-		Bucket: &config.Bucket,
-		Key:    &image.ImageName,
-	})
+	deleteErr := service.uploader.Delete(image.ImageName)
+	if deleteErr != nil {
+		service.logger.Warn("S3 remove failed: ", image.ImageName)
+	}
 
 	service.delImageCache(fmt.Sprint(image.ActorId))
 	service.delActorCache(fmt.Sprint(image.ActorId))
@@ -225,6 +199,6 @@ func (service *ImageService) delActorsListCache() {
 	}
 }
 
-func NewImageService(repo repository.ImageRepository, logger *zap.SugaredLogger, redis *redis.Client, s3 *s3.Client) ImageService {
-	return ImageService{repo: repo, logger: logger, redis: redis, s3: s3}
+func NewImageService(repo repository.ImageRepository, logger *zap.SugaredLogger, redis *redis.Client, uploader utils.Uploader) ImageService {
+	return ImageService{repo: repo, logger: logger, redis: redis, uploader: uploader}
 }

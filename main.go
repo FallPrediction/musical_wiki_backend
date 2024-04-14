@@ -7,6 +7,7 @@ import (
 	"musical_wiki/repository"
 	"musical_wiki/router"
 	"musical_wiki/service"
+	"musical_wiki/utils"
 )
 
 func main() {
@@ -15,6 +16,7 @@ func main() {
 	db := initialize.NewDB(config.NewPg(), logger)
 	s3 := initialize.NewS3(logger)
 	translator := initialize.NewTranslator(logger)
+	uploader := utils.NewUploader(s3, logger)
 
 	baseHandler := handlers.NewBaseHandler(logger, translator)
 
@@ -23,7 +25,7 @@ func main() {
 	creditHandler := handlers.NewCreditHandler(baseHandler, creditService)
 
 	imageRepository := repository.NewImageRepository(db)
-	imageService := service.NewImageService(imageRepository, logger, redis, s3)
+	imageService := service.NewImageService(imageRepository, logger, redis, uploader)
 	imageHandler := handlers.NewImageHandler(baseHandler, imageService)
 
 	actorRepository := repository.NewActorRepository(db)
