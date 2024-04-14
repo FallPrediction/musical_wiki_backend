@@ -27,6 +27,8 @@ services:
       - db
     networks:
       - go-docker-net
+    env_file:
+      - .env
   redis:
     image: redis:7.2.4-alpine
     restart: unless-stopped
