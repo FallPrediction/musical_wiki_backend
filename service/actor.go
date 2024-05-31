@@ -27,10 +27,10 @@ func (service *ActorService) Index(currentPage int, perPage int) ([]models.Actor
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	cache, err := service.cache.RedisClient.HGetAll(ctx, key).Result()
-	if err == nil {
+	if err == nil && len(cache) > 0{
 		var cacheActors []models.Actor
 		err = json.Unmarshal([]byte(cache["actors"]), &cacheActors)
-		if err == nil && len(cache) > 0 {
+		if err != nil{
 			service.logger.Warn("json unmarshal error", err)
 		} else {
 			count, _ := strconv.ParseInt(cache["count"], 10, 64)
